@@ -13,19 +13,24 @@ contract Engaged is ERC721, ERC721URIStorage, Ownable {
 
     struct TokenDetails{
         uint id;
+        address owner;
         uint level;
         uint lastUpgradeTime;
+        string courseStatus;
+        bool readyForUpdate;
     }
 
     TokenDetails public tokenDetails;
 
     address[] public whitelistAddresses;
 
-    mapping(address => bool) public whitelist;
+    mapping(address => bool) whitelist;
     mapping(uint => TokenDetails) public tokenRegistry;
     
     event Attest(address indexed to, uint256 indexed tokenId);
     event Revoke(address indexed to, uint256 indexed tokenId);
+    event lastUpdated(uint tokenId, uint snapshot, string _courseStatus);
+
 
     string[] level0 = [
         "https://gateway.pinata.cloud/ipfs/QmNRPMoUtRjv2gqShWBGbPWnm2EfNSBCZYTK8Q5Ro3rKNV/level0%20%281%29.json",
@@ -81,15 +86,20 @@ contract Engaged is ERC721, ERC721URIStorage, Ownable {
         _tokenIdCounter.increment();
 
         tokenRegistry[tokenId].id = tokenId;
+        tokenRegistry[tokenId].owner = to;
         tokenRegistry[tokenId].level = 0;
         tokenRegistry[tokenId].lastUpgradeTime = block.timestamp;
+        tokenRegistry[tokenId].courseStatus = "Enrolled";
+        tokenRegistry[tokenId].readyForUpdate = false;
+
+        addToWhitelist(to);
 
         uint randomNum = random();
 
         _safeMint(to, tokenId);
         _setTokenURI(tokenId, level0[randomNum]);
 
-        addToWhitelist(to);
+        emit lastUpdated(tokenId, block.timestamp, tokenRegistry[tokenId].courseStatus);
     }
 
     function burn(uint256 tokenId) external {
@@ -125,6 +135,15 @@ contract Engaged is ERC721, ERC721URIStorage, Ownable {
         returns (string memory)
     {
         return super.tokenURI(tokenId);
+    }
+
+    function changeUpradeStatus(uint tokenId) public{
+        // trigger action 
+        // .
+        // .
+        // .
+
+        tokenRegistry[tokenId].readyForUpdate = true;
     }
 
 
@@ -192,10 +211,10 @@ contract Engaged is ERC721, ERC721URIStorage, Ownable {
         return (block.prevrandao) % 3;
     }
 
-    function upgradeNFT(uint _tokenId) public {
-        require(msg.sender == ownerOf(_tokenId), "Not owner");
-        require(block.timestamp > tokenRegistry[_tokenId].lastUpgradeTime + 10,"Cooling time, Can't upgrade now");
-        require(tokenRegistry[_tokenId].level <= 6, "Highest level reached, no upgrades available !!");
+    function upgradeNFT(uint _tokenId) public onlyOwner {
+
+        require(block.timestamp > tokenRegistry[_tokenId].lastUpgradeTime + 2,"Cooling time, Can't upgrade now");
+        require(tokenRegistry[_tokenId].level < 6, "Highest level reached, no upgrades available !!");
 
         uint currentLevel = tokenRegistry[_tokenId].level;
         uint nextLevel = currentLevel+1 ;
@@ -207,31 +226,41 @@ contract Engaged is ERC721, ERC721URIStorage, Ownable {
         
         if(nextLevel == 1){
             _setTokenURI(_tokenId, level1[randomNum]);
+            tokenRegistry[_tokenId].courseStatus = "Metaverse Intro";
+            emit lastUpdated(_tokenId, block.timestamp, tokenRegistry[_tokenId].courseStatus);
+            return;
         }
 
         if(nextLevel == 2){
             _setTokenURI(_tokenId, level2[randomNum]);
+            tokenRegistry[_tokenId].courseStatus = "Blender 3D Modelling";
+            emit lastUpdated(_tokenId, block.timestamp, tokenRegistry[_tokenId].courseStatus);
+            return;
         }
 
         if(nextLevel == 3){
             _setTokenURI(_tokenId, level3[randomNum]);
+            tokenRegistry[_tokenId].courseStatus = "VR Platform Use";
+            emit lastUpdated(_tokenId, block.timestamp, tokenRegistry[_tokenId].courseStatus);
+            return;
         }
 
         if(nextLevel == 4){
             _setTokenURI(_tokenId, level4[randomNum]);
+            tokenRegistry[_tokenId].courseStatus = "Unity 3D Platform";
+            emit lastUpdated(_tokenId, block.timestamp, tokenRegistry[_tokenId].courseStatus);
+            return;
         }
 
         if(nextLevel == 5){
             _setTokenURI(_tokenId, level5[randomNum]);
+            tokenRegistry[_tokenId].courseStatus = "Blockchain/NFTs";
+            emit lastUpdated(_tokenId, block.timestamp, tokenRegistry[_tokenId].courseStatus);
+            return;
         }
-
-        if(nextLevel == 6){
-            _setTokenURI(_tokenId, level6[randomNum]);
-        }
-
-        if(nextLevel == 7){
-            _setTokenURI(_tokenId, GODLevel);
-        }
+        // else {
+        //     revert ("Final Level reached, can't upgrade.");
+        // }
     }
 
     function checkLevel(uint _tokenId) public view returns(uint){
@@ -253,7 +282,88 @@ contract Engaged is ERC721, ERC721URIStorage, Ownable {
         return latestTokenId;
     }
 
+    function levelWiseNftSupply(uint _level)
+       public view returns(uint[] memory nftList)
+   {    
+       uint256 latestTokenId = _tokenIdCounter.current();
+       if (_level == 0){
+          nftList = getNftList(_level, latestTokenId);
+       }
+
+       else if (_level == 1){
+           nftList = getNftList(_level, latestTokenId);
+       }
+
+       else if (_level == 2){
+           nftList = getNftList(_level, latestTokenId);
+       }
+
+       else if (_level == 3){
+           nftList = getNftList(_level, latestTokenId);
+       }
+
+       else if (_level == 4){
+           nftList = getNftList(_level, latestTokenId);
+       }
+
+       else if (_level == 5){
+           nftList = getNftList(_level, latestTokenId);
+       }
+       return nftList;
+
+   }
+
+   function getNftList(uint _level, uint _latestTokenId) internal view returns(uint[] memory){
+       uint[] memory nftList = new uint[](_latestTokenId);
+           uint index = 0;
+           for(uint s = 0 ; s < _latestTokenId ; s++ ){
+               if (tokenRegistry[s].level == _level){
+
+                   nftList[index] = tokenRegistry[s].id;
+                   index++ ;
+                //    console.log(index);
+               }
+           }
+           return nftList;
+   }
+
+   function batchUpgrade(address[] calldata adressesList) public {
+       for(uint s = 0; s <= adressesList.length ; s++) {
+           (bool whiteListed,) = isWhitelisted(adressesList[s]);
+           require(whiteListed, "address is not whitelisted to upgrade");
+           uint id = getTokenDetails(adressesList[s]);
+        //    uint courseLevel = tokenRegistry[s].level;
+           upgradeNFT(id);
+
+       } 
+   }
+
+   function getTokenDetails(address user) public view returns(uint){
+       for(uint s = 0 ; s <= _tokenIdCounter.current(); s++){
+           if(ownerOf(s) == user){
+               return s;
+           }
+       }
+   }
+
+// Note:
+// i. Assuming one address will hold one NFT Token ID only.
+// ii. put bool readyForUpdate in struct. When it is true then only that id will upgrade. 
+//         Once upgraded its status will get back to false and wait for trigger point to 
+//         switch to True to get update.
+// iii. batchUpgrade func is incomplete as of now as it will upgrade every whitelisted address
+//       irrespective of their status to get upgraded.
 
 
 }
 
+//0x5B38Da6a701c568545dCfcB03FcB875f56beddC4
+//0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2
+//0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db
+//0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB
+//0x617F2E2fD72FD9D5503197092aC168c91465E7f2
+//0x17F6AD8Ef982297579C203069C1DbfFE4348c372
+
+// 4 - 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2
+
+// ["0x5B38Da6a701c568545dCfcB03FcB875f56beddC4","0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2","0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db","0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB"]
